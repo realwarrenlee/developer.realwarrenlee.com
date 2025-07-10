@@ -220,7 +220,7 @@ export const commands: { [key: string]: Command } = {
     usage: 'whoami',
     execute: () => {
       return {
-        output: 'developer@realwarrenlee.com'
+        output: 'developer'
       };
     }
   },
