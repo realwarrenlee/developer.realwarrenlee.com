@@ -2,15 +2,147 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/terminal-icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Terminal Shell</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    <title>Terminal - Warren Lee</title>
+    <meta name="description" content="Personal terminal interface of Warren Lee - Full Stack Developer" />
+    <meta name="keywords" content="developer, terminal, unix, programming, portfolio" />
+    <meta name="author" content="Warren Lee" />
+    <meta property="og:title" content="Terminal - Warren Lee" />
+    <meta property="og:description" content="Navigate my digital presence through a retro-futuristic terminal interface" />
+    <meta property="og:type" content="website" />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        color: #0f4;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+      }
+      
+      #loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      
+      .loading-text {
+        font-size: 18px;
+        color: #0f4;
+        animation: pulse 1s ease-in-out infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      
+      .boot-sequence {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        width: 80%;
+        max-width: 600px;
+      }
+      
+      .typing-line {
+        margin: 10px 0;
+        font-size: 18px;
+        color: #0f4;
+        min-height: 1.2em;
+      }
+      
+      .cursor {
+        animation: blink 1s infinite;
+      }
+      
+      @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+      }
+    </style>
   </head>
   <body>
+    <div id="loading">
+      <div class="boot-sequence">
+        <div class="typing-line" id="line1"></div>
+        <div class="typing-line" id="line2"></div>
+      </div>
+    </div>
+    
     <div id="root"></div>
+    
+    <script>
+      // Three-stage loading sequence
+      const stage1Text = "Initialising terminal...";
+      const stage2Line1 = "In the space between keystrokes,";
+      const stage2Line2 = "infinite possibilities whisper.";
+      
+      let stage1Index = 0;
+      let stage2Line1Index = 0;
+      let stage2Line2Index = 0;
+      
+      const line1Element = document.getElementById('line1');
+      const line2Element = document.getElementById('line2');
+      
+      function typeStage1() {
+        // Show "Initialising terminal..." instantly
+        line1Element.textContent = stage1Text;
+        setTimeout(() => {
+          // Clear and start stage 2
+          line1Element.textContent = '';
+          line2Element.textContent = '';
+          setTimeout(typeStage2Line1, 200);
+        }, 600);
+      }
+      
+      function typeStage2Line1() {
+        if (stage2Line1Index < stage2Line1.length) {
+          line1Element.textContent = stage2Line1.substring(0, stage2Line1Index + 1) + '█';
+          stage2Line1Index++;
+          setTimeout(typeStage2Line1, 80 + Math.random() * 40);
+        } else {
+          line1Element.textContent = stage2Line1;
+          setTimeout(typeStage2Line2, 300);
+        }
+      }
+      
+      function typeStage2Line2() {
+        if (stage2Line2Index < stage2Line2.length) {
+          line2Element.textContent = stage2Line2.substring(0, stage2Line2Index + 1) + '█';
+          stage2Line2Index++;
+          setTimeout(typeStage2Line2, 80 + Math.random() * 40);
+        } else {
+          line2Element.textContent = stage2Line2;
+          setTimeout(hideLoading, 1000);
+        }
+      }
+      
+      function hideLoading() {
+        const loading = document.getElementById('loading');
+        if (loading) {
+          loading.style.opacity = '0';
+          loading.style.transition = 'opacity 0.5s ease-out';
+          setTimeout(() => {
+            loading.style.display = 'none';
+          }, 500);
+        }
+      }
+      
+      // Hide loading screen after animation
+      setTimeout(typeStage1, 500);
+    </script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

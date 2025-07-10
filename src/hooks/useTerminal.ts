@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { TerminalState, OutputLine } from '../types/filesystem';
+import { useState, useCallback, useEffect } from 'react';
+import { TerminalState, CommandResult } from '../types/terminal';
 import { fileSystem } from '../data/filesystem';
-import { executeCommand } from '../utils/commands';
+import { commands } from '../utils/commands';
 
 export const useTerminal = () => {
   const [state, setState] = useState<TerminalState>({
@@ -9,137 +9,170 @@ export const useTerminal = () => {
     history: [],
     historyIndex: -1,
     output: [
-      {
-        id: '0',
-        type: 'output',
-        content: 'Terminal Shell - Welcome to the Digital Realm',
-        timestamp: new Date()
-      },
-      {
-        id: '1',
-        type: 'output',
-        content: 'Type "help" to get started or "ls" to explore.',
-        timestamp: new Date()
-      },
-      {
-        id: '2',
-        type: 'output',
-        content: ''
-      }
+      'Welcome to the Terminal, Developer',
+      '',
+      'Type "help" to get started or "ls" to explore.',
+      ''
     ]
   });
 
   const [input, setInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [showMatrix, setShowMatrix] = useState(false);
+  const [showFire, setShowFire] = useState(false);
+  const [showDonut, setShowDonut] = useState(false);
+  const [showTetris, setShowTetris] = useState(false);
+  const [showHack, setShowHack] = useState(false);
+  const [showPong, setShowPong] = useState(false);
+  const [showSnake, setShowSnake] = useState(false);
 
-  const addOutput = useCallback((content: string, type: 'output' | 'error' = 'output') => {
+  const executeCommand = useCallback((commandLine: string) => {
+    if (!commandLine.trim()) return;
+
+    const parts = commandLine.trim().split(' ');
+    const commandName = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
     setState(prev => ({
       ...prev,
-      output: [...prev.output, {
-        id: Date.now().toString(),
-        type,
-        content,
-        timestamp: new Date()
-      }]
-    }));
-  }, []);
-
-  const executeCommandHandler = useCallback(async (command: string) => {
-    if (!command.trim()) return;
-
-    setIsProcessing(true);
-
-    // Add command to output
-    setState(prev => ({
-      ...prev,
-      output: [...prev.output, {
-        id: Date.now().toString(),
-        type: 'command',
-        content: `${getPrompt(prev.currentPath)} ${command}`,
-        timestamp: new Date()
-      }],
-      history: [...prev.history, command],
-      historyIndex: -1
+      history: [...prev.history, commandLine],
+      historyIndex: -1,
+      output: [...prev.output, `developer@realwarrenlee.com:~${prev.currentPath.join('/')}$ ${commandLine}`]
     }));
 
-    // Execute command
-    const result = await executeCommand(command, state.currentPath, fileSystem);
+    const command = commands[commandName];
+    if (!command) {
+      // Special case for matrix command
+      if (commandName === 'matrix') {
+        setShowMatrix(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Entering the Matrix...', '']
+        }));
+      } else if (commandName === 'fire') {
+        setShowFire(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Igniting the flames...', '']
+        }));
+      } else if (commandName === 'donut') {
+        setShowDonut(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Spinning the donut...', '']
+        }));
+      } else if (commandName === 'tetris') {
+        setShowTetris(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Starting Tetris...', 'Use arrow keys to play, ESC to exit', '']
+        }));
+      } else if (commandName === 'hack') {
+        setShowHack(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Initiating hacking sequence...', 'Type any keys to hack, ESC to exit', '']
+        }));
+      } else if (commandName === 'pong') {
+        setShowPong(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Starting Pong...', 'Left: W/S, Right: Arrow Keys, ESC to exit', '']
+        }));
+      } else if (commandName === 'snake') {
+        setShowSnake(true);
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, 'Starting Snake...', 'Use arrow keys to move, ESC to exit', '']
+        }));
+      } else {
+        setState(prev => ({
+          ...prev,
+          output: [...prev.output, `bash: ${commandName}: command not found`, '']
+        }));
+      }
+      return;
+    }
+
+    setIsTyping(true);
     
-    if (result.output) {
-      addOutput(result.output, result.error ? 'error' : 'output');
-    }
-
-    if (result.newPath !== undefined) {
+    // Simulate typing delay for realism
+    setTimeout(() => {
+      const result: CommandResult = command.execute(args, state.currentPath, fileSystem);
+      
       setState(prev => ({
         ...prev,
-        currentPath: result.newPath!
+        currentPath: result.newPath || prev.currentPath,
+        output: result.clear ? [] : [...prev.output, result.output, '']
       }));
-    }
+      
+      setIsTyping(false);
+    }, 100 + Math.random() * 200);
+  }, [state.currentPath]);
 
-    if (result.clear) {
-      setState(prev => ({
-        ...prev,
-        output: []
-      }));
-    }
-
-    setIsProcessing(false);
-    setInput('');
-  }, [state.currentPath, addOutput]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter') {
-      executeCommandHandler(input);
+      executeCommand(input);
+      setInput('');
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setState(prev => {
-        const newIndex = Math.min(prev.historyIndex + 1, prev.history.length - 1);
-        if (newIndex >= 0 && newIndex < prev.history.length) {
-          setInput(prev.history[prev.history.length - 1 - newIndex]);
-          return { ...prev, historyIndex: newIndex };
-        }
-        return prev;
-      });
+      if (state.history.length > 0) {
+        const newIndex = state.historyIndex === -1 
+          ? state.history.length - 1
+          : Math.max(0, state.historyIndex - 1);
+        setState(prev => ({ ...prev, historyIndex: newIndex }));
+        setInput(state.history[newIndex] || '');
+      }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setState(prev => {
-        const newIndex = Math.max(prev.historyIndex - 1, -1);
-        if (newIndex === -1) {
+      if (state.historyIndex > -1) {
+        const newIndex = state.historyIndex + 1;
+        if (newIndex >= state.history.length) {
+          setState(prev => ({ ...prev, historyIndex: -1 }));
           setInput('');
         } else {
-          setInput(prev.history[prev.history.length - 1 - newIndex]);
+          setState(prev => ({ ...prev, historyIndex: newIndex }));
+          setInput(state.history[newIndex]);
         }
-        return { ...prev, historyIndex: newIndex };
-      });
+      }
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      // Auto-complete logic would go here
+      // Basic autocomplete for commands
+      const commandNames = Object.keys(commands);
+      const matches = commandNames.filter(cmd => cmd.startsWith(input.toLowerCase()));
+      if (matches.length === 1) {
+        setInput(matches[0]);
+      }
+    } else if (e.key === 'l' && e.ctrlKey) {
+      e.preventDefault();
+      executeCommand('clear');
     }
-  }, [input, executeCommandHandler]);
-
-  const focusInput = useCallback(() => {
-    inputRef.current?.focus();
-  }, []);
+  }, [input, executeCommand, state.history, state.historyIndex]);
 
   useEffect(() => {
-    focusInput();
-  }, [focusInput]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   return {
     state,
     input,
     setInput,
-    isProcessing,
-    handleKeyDown,
-    focusInput,
-    inputRef
+    isTyping,
+    executeCommand,
+    showMatrix,
+    setShowMatrix,
+    showFire,
+    setShowFire,
+    showDonut,
+    setShowDonut,
+    showTetris,
+    setShowTetris,
+    showHack,
+    setShowHack,
+    showPong,
+    setShowPong,
+    showSnake,
+    setShowSnake
   };
 };
-
-const getPrompt = (currentPath: string[]): string => {
-  const path = currentPath.length === 0 ? '~' : `~/${currentPath.join('/')}`;
-  return `user@terminal:${path}$`;
-};
-
-export { getPrompt };
