@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
-import { TerminalState, CommandResult } from '../types/terminal';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { TerminalState, OutputLine } from '../types/filesystem';
 import { fileSystem } from '../data/filesystem';
-import { commands } from '../utils/commands';
+import { executeCommand } from '../utils/commands';
 
 export const useTerminal = () => {
   const [state, setState] = useState<TerminalState>({
@@ -9,134 +9,137 @@ export const useTerminal = () => {
     history: [],
     historyIndex: -1,
     output: [
-      'Welcome to the Terminal, Developer',
-      '',
-      'Type "help" to get started or "ls" to explore.',
-      ''
+      {
+        id: '0',
+        type: 'output',
+        content: 'Terminal Shell - Welcome to the Digital Realm',
+        timestamp: new Date()
+      },
+      {
+        id: '1',
+        type: 'output',
+        content: 'Type "help" to get started or "ls" to explore.',
+        timestamp: new Date()
+      },
+      {
+        id: '2',
+        type: 'output',
+        content: ''
+      }
     ]
   });
 
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [showMatrix, setShowMatrix] = useState(false);
-  const [showFire, setShowFire] = useState(false);
-  const [showDonut, setShowDonut] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const executeCommand = useCallback((commandLine: string) => {
-    if (!commandLine.trim()) return;
-
-    const parts = commandLine.trim().split(' ');
-    const commandName = parts[0].toLowerCase();
-    const args = parts.slice(1);
-
+  const addOutput = useCallback((content: string, type: 'output' | 'error' = 'output') => {
     setState(prev => ({
       ...prev,
-      history: [...prev.history, commandLine],
-      historyIndex: -1,
-      output: [...prev.output, `developer@realwarrenlee.com:~${prev.currentPath.join('/')}$ ${commandLine}`]
+      output: [...prev.output, {
+        id: Date.now().toString(),
+        type,
+        content,
+        timestamp: new Date()
+      }]
+    }));
+  }, []);
+
+  const executeCommandHandler = useCallback(async (command: string) => {
+    if (!command.trim()) return;
+
+    setIsProcessing(true);
+
+    // Add command to output
+    setState(prev => ({
+      ...prev,
+      output: [...prev.output, {
+        id: Date.now().toString(),
+        type: 'command',
+        content: `${getPrompt(prev.currentPath)} ${command}`,
+        timestamp: new Date()
+      }],
+      history: [...prev.history, command],
+      historyIndex: -1
     }));
 
-    const command = commands[commandName];
-    if (!command) {
-      // Special case for matrix command
-      if (commandName === 'matrix') {
-        setShowMatrix(true);
-        setState(prev => ({
-          ...prev,
-          output: [...prev.output, 'Entering the Matrix...', '']
-        }));
-      } else if (commandName === 'fire') {
-        setShowFire(true);
-        setState(prev => ({
-          ...prev,
-          output: [...prev.output, 'Igniting the flames...', '']
-        }));
-      } else if (commandName === 'donut') {
-        setShowDonut(true);
-        setState(prev => ({
-          ...prev,
-          output: [...prev.output, 'Spinning the donut...', '']
-        }));
-      } else {
-        setState(prev => ({
-          ...prev,
-          output: [...prev.output, `bash: ${commandName}: command not found`, '']
-        }));
-      }
-      return;
+    // Execute command
+    const result = await executeCommand(command, state.currentPath, fileSystem);
+    
+    if (result.output) {
+      addOutput(result.output, result.error ? 'error' : 'output');
     }
 
-    setIsTyping(true);
-    
-    // Simulate typing delay for realism
-    setTimeout(() => {
-      const result: CommandResult = command.execute(args, state.currentPath, fileSystem);
-      
+    if (result.newPath !== undefined) {
       setState(prev => ({
         ...prev,
-        currentPath: result.newPath || prev.currentPath,
-        output: result.clear ? [] : [...prev.output, result.output, '']
+        currentPath: result.newPath!
       }));
-      
-      setIsTyping(false);
-    }, 100 + Math.random() * 200);
-  }, [state.currentPath]);
+    }
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (result.clear) {
+      setState(prev => ({
+        ...prev,
+        output: []
+      }));
+    }
+
+    setIsProcessing(false);
+    setInput('');
+  }, [state.currentPath, addOutput]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      executeCommand(input);
-      setInput('');
+      executeCommandHandler(input);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (state.history.length > 0) {
-        const newIndex = state.historyIndex === -1 
-          ? state.history.length - 1
-          : Math.max(0, state.historyIndex - 1);
-        setState(prev => ({ ...prev, historyIndex: newIndex }));
-        setInput(state.history[newIndex] || '');
-      }
+      setState(prev => {
+        const newIndex = Math.min(prev.historyIndex + 1, prev.history.length - 1);
+        if (newIndex >= 0 && newIndex < prev.history.length) {
+          setInput(prev.history[prev.history.length - 1 - newIndex]);
+          return { ...prev, historyIndex: newIndex };
+        }
+        return prev;
+      });
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (state.historyIndex > -1) {
-        const newIndex = state.historyIndex + 1;
-        if (newIndex >= state.history.length) {
-          setState(prev => ({ ...prev, historyIndex: -1 }));
+      setState(prev => {
+        const newIndex = Math.max(prev.historyIndex - 1, -1);
+        if (newIndex === -1) {
           setInput('');
         } else {
-          setState(prev => ({ ...prev, historyIndex: newIndex }));
-          setInput(state.history[newIndex]);
+          setInput(prev.history[prev.history.length - 1 - newIndex]);
         }
-      }
+        return { ...prev, historyIndex: newIndex };
+      });
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      // Basic autocomplete for commands
-      const commandNames = Object.keys(commands);
-      const matches = commandNames.filter(cmd => cmd.startsWith(input.toLowerCase()));
-      if (matches.length === 1) {
-        setInput(matches[0]);
-      }
-    } else if (e.key === 'l' && e.ctrlKey) {
-      e.preventDefault();
-      executeCommand('clear');
+      // Auto-complete logic would go here
     }
-  }, [input, executeCommand, state.history, state.historyIndex]);
+  }, [input, executeCommandHandler]);
+
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+    focusInput();
+  }, [focusInput]);
 
   return {
     state,
     input,
     setInput,
-    isTyping,
-    executeCommand,
-    showMatrix,
-    setShowMatrix,
-    showFire,
-    setShowFire,
-    showDonut,
-    setShowDonut
+    isProcessing,
+    handleKeyDown,
+    focusInput,
+    inputRef
   };
 };
+
+const getPrompt = (currentPath: string[]): string => {
+  const path = currentPath.length === 0 ? '~' : `~/${currentPath.join('/')}`;
+  return `user@terminal:${path}$`;
+};
+
+export { getPrompt };
